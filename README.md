@@ -10,11 +10,11 @@ One of the things developers use every day is a [shell](https://multicians.org/s
 
 ## Who's the target audience?
 
-This workshop is intended for *intermediate* Rust programmers that already understand basic Rust concepts and have some programming experience. We’ll explain the rest as we go along.
-When we were learning Rust and already knew the basic concepts, we always wanted to see a mid-size system being built to get an understanding for how the concepts are put into practice. We think this could be a learning boost for people that are in the same situation like we were.
+This workshop is intended for *intermediate* Rust programmers who already understand basic Rust concepts and have some programming experience. We’ll explain the rest as we go along.
+When we were learning Rust, we always wanted to see a mid-size system being built to get an understanding of how the concepts are put into practice. We think this could be a learning boost for people who are in the same situation as we were.
 
-[Santiago Pastorino](https://santiagopastorino.com) is the [WyeWorks](https://wyeworks.com) co-founder, Ruby on Rails core team alumni and Rust Developer. He is currently part of the Rust compiler NLL WG and [Rust Latam](https://rustlatam.org) organizer.
-[Matthias Endler](https://matthias-endler.de ) is a Backend Engineer at trivago and runs [Hello Rust Show](https://hello-rust.show).
+* [Santiago Pastorino](https://santiagopastorino.com) is the [WyeWorks](https://wyeworks.com) co-founder, Ruby on Rails core team alumni and Rust Developer. He is currently part of the Rust compiler NLL WG and [Rust Latam](https://rustlatam.org) organizer.
+* [Matthias Endler](https://matthias-endler.de) is a Backend Engineer at trivago and runs [Hello Rust Show](https://hello-rust.show).
 
 
 ### Necessary tools
