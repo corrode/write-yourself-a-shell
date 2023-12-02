@@ -25,7 +25,7 @@ When we were learning Rust, we always wanted to see a mid-size system being buil
 ## Structure
 
 Every commit adds one new feature or refactors the code in a significant way.
-You can `git checkout <commit_id>` to see how the code looks like after each step.
+You can `git checkout <commit_id>` to see what the code looks like after each step.
 
 You can always check your implementation by running `./validate`.
 
@@ -48,8 +48,8 @@ You can always check your implementation by running `./validate`.
 
 ### Section 0 - Check Rust installation and version
 
-- rustc -v
-- try running Rust Edition 2018 preview
+Run `rustc --version`.
+You should see something like `rustc 1.74.0 (79e9716c9 2023-11-13)`.
 
 ### Block 1 - Running single commands
 
