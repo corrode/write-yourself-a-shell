@@ -4,7 +4,8 @@
 
 One of the things developers use every day is a shell. It comes in many flavors like bash, fish or zsh. Depending on your background, writing your own shell from scratch might either sound intimidating or pointless. We like to believe that it can be a fun way to gain more hands-on Rust experience. If you want to play with concepts like I/O, error handling, and syscalls we invite you to participate in this workshop. Who knows, it could also be an opportunity to start your first mid-size Rust project?
 
-This is a workshop about writing your own bash-like [shell](https://multicians.org/shell.html) in Rust. It will show you the basics, but it's by no means feature-complete.
+> [!NOTE]
+> This is a workshop about writing your own bash-like [shell](https://multicians.org/shell.html) in Rust. It will show you the basics, but it's by no means feature-complete.
 
 A shell is a really big project. We can not cover everything.
 Take it as an excuse to learn Rust rather than a guide to write the perfect shell.
