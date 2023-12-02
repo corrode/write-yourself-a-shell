@@ -19,8 +19,7 @@ When we were learning Rust, we always wanted to see a mid-size system being buil
 
 ### Necessary tools
 
-* [rustc](https://rustup.rs/)
-* [cargo](https://github.com/rust-lang/cargo)
+* [rust](https://www.rust-lang.org/tools/install)
 * [git](https://git-scm.com/)
 
 ## Structure
