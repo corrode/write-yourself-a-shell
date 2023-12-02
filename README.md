@@ -2,11 +2,11 @@
 
 ## Introduction
 
-One of things developers use every day is a shell. It comes in many flavors like bash, fish or zsh. Depending on your background, writing your own shell from scratch might either sound intimidating or pointless. We like to believe that it can be a fun way to gain more hands-on Rust experience.  If you want to play with concepts like I/O, error handling, and syscalls we invite you to participate in this workshop.  Who knows, it could also be an opportunity to start your first mid-size Rust project?  
+One of the things developers use every day is a shell. It comes in many flavors like bash, fish or zsh. Depending on your background, writing your own shell from scratch might either sound intimidating or pointless. We like to believe that it can be a fun way to gain more hands-on Rust experience. If you want to play with concepts like I/O, error handling, and syscalls we invite you to participate in this workshop. Who knows, it could also be an opportunity to start your first mid-size Rust project?
 
-This is a workshop about writing your own bash-like [shell](https://multicians.org/shell.html) in Rust. It will show you the basics, but it's by no means feature-complete.  
+This is a workshop about writing your own bash-like [shell](https://multicians.org/shell.html) in Rust. It will show you the basics, but it's by no means feature-complete.
 
-A shell is a really big project. We can not cover everything.  
+A shell is a really big project. We can not cover everything.
 Take it as an excuse to learn Rust rather than a guide to write the perfect shell.
 
 ## Who's the target audience?
@@ -18,13 +18,13 @@ When we were learning Rust and already knew the basic concepts, we always wanted
 [Matthias Endler](https://matthias-endler.de ) is a Backend Engineer at trivago and runs [Hello Rust Show](https://hello-rust.show).
 
 
-### Necessary tools 
-    
+### Necessary tools
+
 * [rustc](https://rustup.rs/)
 * [cargo](https://github.com/rust-lang/cargo)
 * [git](https://git-scm.com/)
 
-##  Structure
+## Structure
 
 Every commit adds one new feature or refactors the code in a significant way.
 You can `git checkout <commit_id>` to see how the code looks like after each step.
@@ -40,13 +40,13 @@ You can always check your implementation by running `./validate`.
 3. Shell-builtins (cd)
 4. Pipes
 5. Ideas for extending your shell
-  - readline
-  - handling control signals (ctrl+c, ctrl+d)  
-  - redirection
-  - command completion
-  - adding more builtins
-  - use a grammar for parsing
-  - Hints for the workshop
+   - readline
+   - handling control signals (ctrl+c, ctrl+d)
+   - redirection
+   - command completion
+   - adding more builtins
+   - use a grammar for parsing
+   - Hints for the workshop
 
 ### Section 0 - Check Rust installation and version
 
@@ -76,7 +76,7 @@ You can always check your implementation by running `./validate`.
 ### Block 4 - Pipes
 
 - Implement pipes, which are a way to feed the output of one command into another one.
-	Syntax: 
+	Syntax:
 
 	```shell
 	command1 | command2
@@ -87,7 +87,7 @@ You can always check your implementation by running `./validate`.
 ### Block 5 - Bring your own features (e.g. "where the fun is at")!
 
 * Add readline support
-* Handle control signals (ctrl+c, ctrl+d)  
+* Handle control signals (ctrl+c, ctrl+d)
 * Redirection
 * Command completion
 * Implement more shell-builtins
