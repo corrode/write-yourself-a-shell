@@ -1,8 +1,5 @@
-#![feature(uniform_paths)]
-#![feature(try_from)]
-
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::DefaultEditor;
 
 use std::convert::TryFrom;
 use std::process::{Command, Stdio};
@@ -15,16 +12,15 @@ use cmd::{Statement, Statements};
 use error::Error;
 
 fn main() -> Result<(), Error> {
-    let mut rl = Editor::<()>::new();
+    let mut rl = DefaultEditor::new().unwrap();
 
     loop {
         let readline = rl.readline("> ");
         match readline {
             Ok(line) => {
-                rl.add_history_entry(line.as_ref());
+                rl.add_history_entry(line.as_str()).unwrap();
                 match handle(line) {
-                    Ok(()) => {}
-                    Err(Error::NoBinary) => {}
+                    Err(Error::NoBinary) | Ok(()) => {}
                     Err(e) => eprintln!("rush: {:?}", e),
                 }
             }

@@ -37,7 +37,7 @@ impl<'a> TryFrom<&'a str> for Statements<'a> {
 
         // `std::iter::FromIterator` is not implemented for our newtype. We could either implement it or
         // specify what type we want to collect into and then wrap the result into an `Ok()`.
-        let v: Result<Vec<_>, Self::Error> = commands.map(|cmd| Statement::try_from(cmd)).collect();
+        let v: Result<Vec<_>, Self::Error> = commands.map(Statement::try_from).collect();
 
         Ok(Statements(v?))
     }
@@ -93,8 +93,8 @@ mod test {
     #[test]
     fn test_empty_line() {
         match Statements::try_from("") {
-            Err(Error::NoBinary) => assert!(true),
-            _ => assert!(false),
+            Err(Error::NoBinary) => (),
+            _ => panic!("Expected NoBinary error"),
         }
     }
 

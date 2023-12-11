@@ -5,4 +5,4 @@ authors = ["Santiago Pastorino <spastorino@gmail.com> & Matthias Endler <matthia
 edition = "2018"
 
 [dependencies]
-rustyline = "2.1.0"
+rustyline = "13.0.0"
