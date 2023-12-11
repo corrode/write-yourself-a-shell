@@ -54,7 +54,7 @@ You should see something like `rustc 1.74.0 (79e9716c9 2023-11-13)`.
 ### Block 1 - Running single commands
 
 - Try to run a single command and print the output to the stdout.
-- Hint: Look for APIs in the standard library to do that.
+- Hint: Use [Command](https://doc.rust-lang.org/std/process/struct.Command.html) from the standard library.
 - Bonus: Try to make the code as idiomatic as you can.
 - Bonus: Write a unit test to make sure your shell works
 
