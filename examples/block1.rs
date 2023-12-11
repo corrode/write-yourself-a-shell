@@ -4,6 +4,7 @@ use std::{
     process::Command,
 };
 
+#[derive(PartialEq, Debug)]
 struct Cmd<'a> {
     binary: &'a str,
     args: Vec<&'a str>,
@@ -50,4 +51,36 @@ fn read_line() -> String {
         .read_line(&mut line)
         .expect("failed to read line from stdin");
     line
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_cmd_is_parsed_from_empty_line() {
+        assert_eq!(Cmd::from_line(""), None);
+    }
+
+    #[test]
+    fn cmd_with_no_args_is_parsed() {
+        assert_eq!(
+            Cmd::from_line("ls"),
+            Some(Cmd {
+                binary: "ls",
+                args: vec![]
+            })
+        );
+    }
+
+    #[test]
+    fn cmd_with_args_is_parsed() {
+        assert_eq!(
+            Cmd::from_line("ls -l"),
+            Some(Cmd {
+                binary: "ls",
+                args: vec!["-l"]
+            })
+        );
+    }
 }
