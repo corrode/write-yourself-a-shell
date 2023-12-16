@@ -9,5 +9,5 @@ fn shell_can_run_pwd() {
         .run_and_wait_for_stdout();
     assert!(!output.status.success());
     let stdout_str = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout_str, format!("> \n{curr_dir}\n> "));
+    assert_eq!(stdout_str, curr_dir);
 }
