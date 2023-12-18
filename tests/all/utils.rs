@@ -37,6 +37,12 @@ impl<'a> ShellRunner<'a> {
     }
 
     pub fn run(&self) -> Output {
+        let mut child = self.run_shell();
+        self.write_stdin(&mut child);
+        self.wait(child)
+    }
+
+    fn run_shell(&self) -> Child {
         let mut command = Command::new("cargo");
         command.arg("run");
         if let Some(example) = self.example {
@@ -44,12 +50,11 @@ impl<'a> ShellRunner<'a> {
         }
         command.stdin(Stdio::piped()).stdout(Stdio::piped());
 
-        let child = command.spawn().unwrap();
-
-        self.wait_with_input_output(child, self.stdin.map(|s| s.as_bytes().to_vec()))
+        command.spawn().unwrap()
     }
 
-    fn wait_with_input_output(&self, mut child: Child, input: Option<Vec<u8>>) -> Output {
+    fn write_stdin(&self, child: &mut Child) {
+        let input = self.stdin.map(|s| s.as_bytes().to_vec());
         let stdin = input.and_then(|i| {
             child.stdin.take().map(|mut stdin| {
                 std::thread::spawn(move || {
@@ -63,7 +68,9 @@ impl<'a> ShellRunner<'a> {
         if let Some(t) = stdin {
             t.join().unwrap()
         }
+    }
 
+    fn wait(&self, mut child: Child) -> Output {
         if let Some(duration) = self.kill_after {
             std::thread::sleep(duration);
             child.kill().unwrap();
