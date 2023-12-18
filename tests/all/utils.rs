@@ -54,19 +54,15 @@ impl<'a> ShellRunner<'a> {
     }
 
     fn write_stdin(&self, child: &mut Child) {
-        let input = self.stdin.map(|s| s.as_bytes().to_vec());
-        let stdin = input.and_then(|i| {
-            child.stdin.take().map(|mut stdin| {
-                std::thread::spawn(move || {
-                    stdin.write_all(&i).unwrap();
-                    stdin.flush().unwrap();
-                })
-            })
-        });
-
-        // Finish writing stdin before waiting, because waiting drops stdin.
-        if let Some(t) = stdin {
-            t.join().unwrap()
+        if let Some(stdin) = self.stdin {
+            let stdin = stdin.as_bytes().to_vec();
+            let mut child_stdin = child.stdin.take().unwrap();
+            let handle = std::thread::spawn(move || {
+                child_stdin.write_all(&stdin).unwrap();
+                child_stdin.flush().unwrap();
+            });
+            // Finish writing to stdin.
+            handle.join().unwrap();
         }
     }
 
