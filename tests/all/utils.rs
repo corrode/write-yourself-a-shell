@@ -7,6 +7,7 @@ use std::{
 pub struct ShellRunner<'a> {
     stdin: Option<&'a str>,
     kill_after: Option<Duration>,
+    example: Option<&'a str>,
 }
 
 impl<'a> ShellRunner<'a> {
@@ -14,11 +15,17 @@ impl<'a> ShellRunner<'a> {
         Self {
             stdin: None,
             kill_after: None,
+            example: None,
         }
     }
 
     pub fn with_stdin(mut self, stdin: &'a str) -> Self {
         self.stdin = Some(stdin);
+        self
+    }
+
+    pub fn example(mut self, example: &'a str) -> Self {
+        self.example = Some(example);
         self
     }
 
@@ -31,10 +38,11 @@ impl<'a> ShellRunner<'a> {
 
     pub fn run(&self) -> Output {
         let mut command = Command::new("cargo");
-        command
-            .args(["run", "--example", "block1"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped());
+        command.arg("run");
+        if let Some(example) = self.example {
+            command.args(["--example", example]);
+        }
+        command.stdin(Stdio::piped()).stdout(Stdio::piped());
 
         let child = command.spawn().unwrap();
 
