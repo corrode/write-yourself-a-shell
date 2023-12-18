@@ -29,7 +29,7 @@ impl<'a> ShellRunner<'a> {
         self
     }
 
-    pub fn run_and_wait_for_stdout(&self) -> Output {
+    pub fn run(&self) -> Output {
         let mut command = Command::new("cargo");
         command
             .args(["run", "--example", "block1"])
