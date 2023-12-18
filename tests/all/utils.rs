@@ -1,6 +1,7 @@
 use std::{
     io::Write,
     process::{Child, Command, Output, Stdio},
+    thread,
     time::Duration,
 };
 
@@ -55,14 +56,14 @@ impl<'a> ShellRunner<'a> {
 
     fn write_stdin(&self, child: &mut Child) {
         if let Some(stdin) = self.stdin {
-            let stdin = stdin.as_bytes().to_vec();
-            let mut child_stdin = child.stdin.take().unwrap();
-            let handle = std::thread::spawn(move || {
-                child_stdin.write_all(&stdin).unwrap();
-                child_stdin.flush().unwrap();
+            // Use scoped threads to avoid cloning stdin.
+            thread::scope(|s| {
+                s.spawn(|| {
+                    let mut child_stdin = child.stdin.take().unwrap();
+                    child_stdin.write_all(stdin.as_bytes()).unwrap();
+                    child_stdin.flush().unwrap();
+                });
             });
-            // Finish writing to stdin.
-            handle.join().unwrap();
         }
     }
 
