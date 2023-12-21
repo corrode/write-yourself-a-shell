@@ -2,6 +2,7 @@ use std::{
     io,
     io::IsTerminal,
     io::Write,
+    iter::Peekable,
     process::{Command, Output},
 };
 
@@ -11,15 +12,64 @@ struct Cmd<'a> {
     args: Vec<&'a str>,
 }
 
-impl<'a> Cmd<'a> {
-    fn from_statement(statement: &'a str) -> Option<Self> {
-        let mut parts = statement.split_whitespace();
-        parts.next().map(|binary| Cmd {
-            binary,
-            args: parts.collect(),
-        })
+enum Element<'a> {
+    /// `;`
+    Semicolon,
+    /// `&&`
+    And,
+    /// `||`
+    Or,
+    /// Command.
+    Cmd(Cmd<'a>),
+}
+
+impl<'a> Element<'a> {
+    fn parse_next<I: Iterator<Item = &'a str>>(tokens: &mut Peekable<I>) -> Option<Self> {
+        tokens
+            .next()
+            .and_then(|next| match Self::parse_operator(next) {
+                Some(operator) => Some(operator),
+                None => Self::parse_cmd(next, tokens).map(Self::Cmd),
+            })
     }
 
+    fn parse_operator(token: &str) -> Option<Self> {
+        match token {
+            ";" => Some(Self::Semicolon),
+            "&&" => Some(Self::And),
+            "||" => Some(Self::Or),
+            _ => None,
+        }
+    }
+
+    fn is_operator(token: &str) -> bool {
+        Self::parse_operator(token).is_some()
+    }
+
+    fn parse_cmd<I: Iterator<Item = &'a str>>(
+        binary: &'a str,
+        tokens: &mut Peekable<I>,
+    ) -> Option<Cmd<'a>> {
+        let mut args: Vec<&str> = vec![];
+        loop {
+            let next = tokens.peek();
+            match next {
+                Some(token) if Self::is_operator(token) => {
+                    // found operator, so I already parsed all cmd
+                    break;
+                }
+                Some(token) => {
+                    args.push(token);
+                }
+                None => break,
+            }
+            tokens.next();
+        }
+        Some(Cmd { binary, args })
+    }
+}
+
+impl<'a> Cmd<'a> {
     fn run(self) -> Option<Output> {
         let child = Command::new(self.binary)
             .args(self.args)
@@ -31,16 +81,53 @@ impl<'a> Cmd<'a> {
     }
 }
 
-fn cmds_from_line(line: &str) -> impl Iterator<Item = Cmd> {
-    line.split(';').filter_map(Cmd::from_statement)
+// TODO: this doesn't need to be peekable.
+fn run_elements<'a, I: Iterator<Item = Element<'a>>>(elements: &mut Peekable<I>) {
+    let mut prev_output: Option<Output> = None;
+    while let Some(e) = elements.next() {
+        match e {
+            Element::Cmd(cmd) => {
+                prev_output = cmd.run();
+            }
+            Element::Semicolon => {
+                prev_output = None;
+            }
+            Element::And => {
+                let status = prev_output.expect("no command before &&").status;
+                if !status.success() {
+                    consume_until_semicolon(elements);
+                }
+                prev_output = None;
+            }
+            Element::Or => {
+                let status = prev_output.expect("no command before ||").status;
+                if !status.success() {
+                    consume_until_semicolon(elements);
+                }
+                prev_output = None;
+            }
+        }
+    }
+}
+
+fn consume_until_semicolon<'a, I: Iterator<Item = Element<'a>>>(elements: &mut Peekable<I>) {
+    while let Some(e) = elements.peek() {
+        if let Element::Semicolon = e {
+            elements.next();
+            break;
+        }
+        elements.next();
+    }
 }
 
 fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        for command in cmds_from_line(&line) {
-            command.run();
+        let elements = elements_from_line(&line);
+        let mut elements_iter = elements.into_iter().peekable();
+        while elements_iter.peek().is_some() {
+            run_elements(&mut elements_iter);
         }
     }
 }
@@ -63,6 +150,15 @@ fn read_line() -> String {
         .read_line(&mut line)
         .expect("failed to read line from stdin");
     line
+}
+
+fn elements_from_line(line: &str) -> Vec<Element> {
+    let mut tokens = line.split_whitespace().peekable();
+    let mut elements = vec![];
+    while let Some(e) = Element::parse_next(&mut tokens) {
+        elements.push(e);
+    }
+    elements
 }
 
 #[cfg(test)]
