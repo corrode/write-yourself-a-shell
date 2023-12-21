@@ -101,7 +101,7 @@ fn run_elements<'a, I: Iterator<Item = Element<'a>>>(elements: &mut Peekable<I>)
             }
             Element::Or => {
                 let status = prev_output.expect("no command before ||").status;
-                if !status.success() {
+                if status.success() {
                     consume_until_semicolon(elements);
                 }
                 prev_output = None;

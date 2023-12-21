@@ -32,3 +32,17 @@ fn shell_understands_and_operator() {
     let stdout_str = String::from_utf8(output.stdout).unwrap();
     assert_eq!(stdout_str, "hello\nworld\n");
 }
+
+#[test]
+fn shell_understands_or_operator() {
+    let output = ShellRunner::new()
+        .with_stdin("echo hello || echo world")
+        .example("block2")
+        .kill_after(Duration::from_secs(1))
+        .run();
+    // The command doesn't exit successfully because it's killed.
+    assert!(!output.status.success());
+
+    let stdout_str = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(stdout_str, "hello\n");
+}
