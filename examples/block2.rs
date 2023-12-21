@@ -1,8 +1,8 @@
 use std::{
     io,
-    io::IsTerminal, // <--- bring is_terminal() into scope
-    io::Write,      // <--- bring flush() into scope
-    process::Command,
+    io::IsTerminal,
+    io::Write,
+    process::{Command, Output},
 };
 
 #[derive(PartialEq, Debug)]
@@ -20,21 +20,26 @@ impl<'a> Cmd<'a> {
         })
     }
 
-    fn run(self) {
-        match Command::new(self.binary).args(self.args).spawn() {
-            Ok(mut child) => {
-                child.wait().expect("command wasn't running");
-            }
-            Err(e) => eprintln!("{:?}", e),
-        }
+    fn run(self) -> Option<Output> {
+        let child = Command::new(self.binary)
+            .args(self.args)
+            .spawn()
+            .map_err(|e| eprintln!("{:?}", e))
+            .ok()?;
+        let output = child.wait_with_output().expect("command wasn't running");
+        Some(output)
     }
+}
+
+fn cmds_from_line(line: &str) -> impl Iterator<Item = Cmd> {
+    line.split(';').filter_map(Cmd::from_statement)
 }
 
 fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        if let Some(command) = Cmd::from_statement(&line) {
+        for command in cmds_from_line(&line) {
             command.run();
         }
     }
@@ -88,6 +93,24 @@ mod tests {
                 binary: "ls",
                 args: vec!["-l"]
             })
+        );
+    }
+
+    #[test]
+    fn cmds_are_parsed() {
+        let cmds: Vec<Cmd<'_>> = cmds_from_line("ls; echo hello").collect();
+        assert_eq!(
+            cmds,
+            vec![
+                Cmd {
+                    binary: "ls",
+                    args: vec![]
+                },
+                Cmd {
+                    binary: "echo",
+                    args: vec!["hello"]
+                }
+            ]
         );
     }
 }

@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::utils::ShellRunner;
 
 #[test]
-fn shell_can_run_pwd() {
+fn shell_runs_pwd() {
     let curr_dir_path = std::env::current_dir().unwrap();
     let curr_dir = curr_dir_path.to_str().unwrap();
     let output = ShellRunner::new()
