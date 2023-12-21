@@ -12,7 +12,7 @@ struct Cmd<'a> {
 }
 
 impl<'a> Cmd<'a> {
-    fn from_statement(statement: &'a str) -> Option<Self> {
+    fn from_line(statement: &'a str) -> Option<Self> {
         let mut parts = statement.split_whitespace();
         parts.next().map(|binary| Cmd {
             binary,
@@ -34,7 +34,7 @@ fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        if let Some(command) = Cmd::from_statement(&line) {
+        if let Some(command) = Cmd::from_line(&line) {
             command.run();
         }
     }
@@ -66,13 +66,13 @@ mod tests {
 
     #[test]
     fn no_cmd_is_parsed_from_empty_line() {
-        assert_eq!(Cmd::from_statement(""), None);
+        assert_eq!(Cmd::from_line(""), None);
     }
 
     #[test]
     fn cmd_with_no_args_is_parsed() {
         assert_eq!(
-            Cmd::from_statement("ls"),
+            Cmd::from_line("ls"),
             Some(Cmd {
                 binary: "ls",
                 args: vec![]
@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn cmd_with_args_is_parsed() {
         assert_eq!(
-            Cmd::from_statement("ls -l"),
+            Cmd::from_line("ls -l"),
             Some(Cmd {
                 binary: "ls",
                 args: vec!["-l"]
