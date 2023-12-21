@@ -29,5 +29,5 @@ fn shell_understands_and_operator() {
     assert!(!output.status.success());
 
     let stdout_str = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout_str, "hello world\n");
+    assert_eq!(stdout_str, "hello\nworld\n");
 }
