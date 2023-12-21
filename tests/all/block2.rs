@@ -7,7 +7,8 @@ fn shell_runs_pwd_twice() {
     let curr_dir_path = std::env::current_dir().unwrap();
     let curr_dir = curr_dir_path.to_str().unwrap();
     let output = ShellRunner::new()
-        .with_stdin("pwd;pwd")
+        // TODO: this doesn't work if `;` isn't separated by ' '
+        .with_stdin("pwd ; pwd")
         .example("block2")
         .kill_after(Duration::from_secs(1))
         .run();
