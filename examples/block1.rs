@@ -12,8 +12,8 @@ struct Cmd<'a> {
 }
 
 impl<'a> Cmd<'a> {
-    fn from_line(statement: &'a str) -> Option<Self> {
-        let mut parts = statement.split_whitespace();
+    fn from_line(line: &'a str) -> Option<Self> {
+        let mut parts = line.split_whitespace();
         parts.next().map(|binary| Cmd {
             binary,
             args: parts.collect(),
