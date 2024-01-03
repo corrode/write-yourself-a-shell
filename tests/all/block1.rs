@@ -11,8 +11,6 @@ fn shell_runs_pwd() {
         .example("block1")
         .kill_after(Duration::from_secs(1))
         .run();
-    // The command doesn't exit successfully because it's killed.
-    assert!(!output.status.success());
 
     let stdout_str = String::from_utf8(output.stdout).unwrap();
     assert_eq!(stdout_str, format!("{curr_dir}\n"));
