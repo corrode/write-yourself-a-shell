@@ -2,7 +2,7 @@
 name = "rush"
 version = "0.1.0"
 authors = ["Santiago Pastorino <spastorino@gmail.com> & Matthias Endler <matthias-endler@gmx.net>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 rustyline = "13.0.0"
