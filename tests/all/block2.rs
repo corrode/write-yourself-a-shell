@@ -4,8 +4,6 @@ use crate::utils::ShellRunner;
 
 #[test]
 fn shell_runs_pwd_twice() {
-    let curr_dir_path = std::env::current_dir().unwrap();
-    let curr_dir = curr_dir_path.to_str().unwrap();
     let output = ShellRunner::new()
         // TODO: this doesn't work if `;` isn't separated by ' '
         .with_stdin("pwd ; pwd")
@@ -14,6 +12,8 @@ fn shell_runs_pwd_twice() {
         .run();
 
     let stdout_str = String::from_utf8(output.stdout).unwrap();
+    let curr_dir_path = std::env::current_dir().unwrap();
+    let curr_dir = curr_dir_path.to_str().unwrap();
     assert_eq!(stdout_str, format!("{curr_dir}\n{curr_dir}\n"));
 }
 

@@ -4,8 +4,6 @@ use crate::utils::ShellRunner;
 
 #[test]
 fn shell_runs_pwd() {
-    let curr_dir_path = std::env::current_dir().unwrap();
-    let curr_dir = curr_dir_path.to_str().unwrap();
     let output = ShellRunner::new()
         .with_stdin("pwd")
         .example("block1")
@@ -13,5 +11,7 @@ fn shell_runs_pwd() {
         .run();
 
     let stdout_str = String::from_utf8(output.stdout).unwrap();
+    let curr_dir_path = std::env::current_dir().unwrap();
+    let curr_dir = curr_dir_path.to_str().unwrap();
     assert_eq!(stdout_str, format!("{curr_dir}\n"));
 }
