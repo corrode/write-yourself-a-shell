@@ -156,6 +156,9 @@ fn read_line() -> String {
 }
 
 fn chains_from_line(line: &str) -> impl Iterator<Item = Chain> {
+    // For simplicity sake, this workshop uses the split function.
+    // This is inefficient because it parses the whole line.
+    // If you feel adventurous, try to parse the line character by character instead. 🤠
     let commands = line.split(';');
     commands.filter_map(Chain::parse)
 }
