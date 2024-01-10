@@ -23,11 +23,11 @@ enum Element<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-struct Statement<'a> {
+struct Chain<'a> {
     elements: Vec<Element<'a>>,
 }
 
-impl<'a> Statement<'a> {
+impl<'a> Chain<'a> {
     fn parse(command: &'a str) -> Option<Self> {
         let mut tokens = command.split_whitespace().peekable();
         let mut elements = vec![];
@@ -128,8 +128,8 @@ fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        let statements = statements_from_line(&line);
-        for s in statements {
+        let chains = chains_from_line(&line);
+        for s in chains {
             s.run();
         }
     }
@@ -155,29 +155,29 @@ fn read_line() -> String {
     line
 }
 
-fn statements_from_line(line: &str) -> impl Iterator<Item = Statement> {
+fn chains_from_line(line: &str) -> impl Iterator<Item = Chain> {
     let commands = line.split(';');
-    commands.filter_map(Statement::parse)
+    commands.filter_map(Chain::parse)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parse_statements(line: &str) -> Vec<Statement> {
-        statements_from_line(line).collect()
+    fn parse_chains(line: &str) -> Vec<Chain> {
+        chains_from_line(line).collect()
     }
 
     #[test]
     fn no_cmd_is_parsed_from_empty_line() {
-        assert_eq!(parse_statements(""), vec![]);
+        assert_eq!(parse_chains(""), vec![]);
     }
 
     #[test]
     fn cmd_with_no_args_is_parsed() {
         assert_eq!(
-            parse_statements("ls"),
-            vec![Statement {
+            parse_chains("ls"),
+            vec![Chain {
                 elements: vec![Element::Cmd(Cmd {
                     binary: "ls",
                     args: vec![]
@@ -189,8 +189,8 @@ mod tests {
     #[test]
     fn cmd_with_args_is_parsed() {
         assert_eq!(
-            parse_statements("ls -l"),
-            vec![Statement {
+            parse_chains("ls -l"),
+            vec![Chain {
                 elements: vec![Element::Cmd(Cmd {
                     binary: "ls",
                     args: vec!["-l"]
@@ -202,15 +202,15 @@ mod tests {
     #[test]
     fn cmds_are_parsed() {
         assert_eq!(
-            parse_statements("ls; echo hello"),
+            parse_chains("ls; echo hello"),
             vec![
-                Statement {
+                Chain {
                     elements: vec![Element::Cmd(Cmd {
                         binary: "ls",
                         args: vec![]
                     }),]
                 },
-                Statement {
+                Chain {
                     elements: vec![Element::Cmd(Cmd {
                         binary: "echo",
                         args: vec!["hello"]
