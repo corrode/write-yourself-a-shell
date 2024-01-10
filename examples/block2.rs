@@ -12,15 +12,59 @@ struct Cmd<'a> {
     args: Vec<&'a str>,
 }
 
+#[derive(PartialEq, Debug)]
 enum Element<'a> {
-    /// `;`
-    Semicolon,
     /// `&&`
     And,
     /// `||`
     Or,
     /// Command.
     Cmd(Cmd<'a>),
+}
+
+#[derive(PartialEq, Debug)]
+struct Statement<'a> {
+    elements: Vec<Element<'a>>,
+}
+
+impl<'a> Statement<'a> {
+    fn parse(command: &'a str) -> Option<Self> {
+        let mut tokens = command.split_whitespace().peekable();
+        let mut elements = vec![];
+        while let Some(e) = Element::parse_next(&mut tokens) {
+            elements.push(e);
+        }
+        if !elements.is_empty() {
+            Some(Self { elements })
+        } else {
+            None
+        }
+    }
+
+    fn run(self) {
+        let mut prev_output: Option<Output> = None;
+        for e in self.elements {
+            match e {
+                Element::Cmd(cmd) => {
+                    prev_output = cmd.run();
+                }
+                Element::And => {
+                    let status = prev_output.expect("no command before &&").status;
+                    if !status.success() {
+                        break;
+                    }
+                    prev_output = None;
+                }
+                Element::Or => {
+                    let status = prev_output.expect("no command before ||").status;
+                    if status.success() {
+                        break;
+                    }
+                    prev_output = None;
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Element<'a> {
@@ -35,7 +79,6 @@ impl<'a> Element<'a> {
 
     fn parse_operator(token: &str) -> Option<Self> {
         match token {
-            ";" => Some(Self::Semicolon),
             "&&" => Some(Self::And),
             "||" => Some(Self::Or),
             _ => None,
@@ -81,53 +124,13 @@ impl<'a> Cmd<'a> {
     }
 }
 
-// TODO: this doesn't need to be peekable.
-fn run_elements<'a, I: Iterator<Item = Element<'a>>>(elements: &mut Peekable<I>) {
-    let mut prev_output: Option<Output> = None;
-    while let Some(e) = elements.next() {
-        match e {
-            Element::Cmd(cmd) => {
-                prev_output = cmd.run();
-            }
-            Element::Semicolon => {
-                prev_output = None;
-            }
-            Element::And => {
-                let status = prev_output.expect("no command before &&").status;
-                if !status.success() {
-                    consume_until_semicolon(elements);
-                }
-                prev_output = None;
-            }
-            Element::Or => {
-                let status = prev_output.expect("no command before ||").status;
-                if status.success() {
-                    consume_until_semicolon(elements);
-                }
-                prev_output = None;
-            }
-        }
-    }
-}
-
-fn consume_until_semicolon<'a, I: Iterator<Item = Element<'a>>>(elements: &mut Peekable<I>) {
-    while let Some(e) = elements.peek() {
-        if let Element::Semicolon = e {
-            elements.next();
-            break;
-        }
-        elements.next();
-    }
-}
-
 fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        let elements = elements_from_line(&line);
-        let mut elements_iter = elements.into_iter().peekable();
-        while elements_iter.peek().is_some() {
-            run_elements(&mut elements_iter);
+        let statements = statements_from_line(&line);
+        for s in statements {
+            s.run();
         }
     }
 }
@@ -152,60 +155,67 @@ fn read_line() -> String {
     line
 }
 
-fn elements_from_line(line: &str) -> Vec<Element> {
-    let mut tokens = line.split_whitespace().peekable();
-    let mut elements = vec![];
-    while let Some(e) = Element::parse_next(&mut tokens) {
-        elements.push(e);
-    }
-    elements
+fn statements_from_line(line: &str) -> impl Iterator<Item = Statement> {
+    let commands = line.split(';');
+    commands.filter_map(Statement::parse)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn parse_statements(line: &str) -> Vec<Statement> {
+        statements_from_line(line).collect()
+    }
+
     #[test]
     fn no_cmd_is_parsed_from_empty_line() {
-        assert_eq!(Cmd::from_statement(""), None);
+        assert_eq!(parse_statements(""), vec![]);
     }
 
     #[test]
     fn cmd_with_no_args_is_parsed() {
         assert_eq!(
-            Cmd::from_statement("ls"),
-            Some(Cmd {
-                binary: "ls",
-                args: vec![]
-            })
+            parse_statements("ls"),
+            vec![Statement {
+                elements: vec![Element::Cmd(Cmd {
+                    binary: "ls",
+                    args: vec![]
+                }),]
+            },]
         );
     }
 
     #[test]
     fn cmd_with_args_is_parsed() {
         assert_eq!(
-            Cmd::from_statement("ls -l"),
-            Some(Cmd {
-                binary: "ls",
-                args: vec!["-l"]
-            })
+            parse_statements("ls -l"),
+            vec![Statement {
+                elements: vec![Element::Cmd(Cmd {
+                    binary: "ls",
+                    args: vec!["-l"]
+                })]
+            }]
         );
     }
 
     #[test]
     fn cmds_are_parsed() {
-        let cmds: Vec<Cmd<'_>> = cmds_from_line("ls; echo hello").collect();
         assert_eq!(
-            cmds,
+            parse_statements("ls; echo hello"),
             vec![
-                Cmd {
-                    binary: "ls",
-                    args: vec![]
+                Statement {
+                    elements: vec![Element::Cmd(Cmd {
+                        binary: "ls",
+                        args: vec![]
+                    }),]
                 },
-                Cmd {
-                    binary: "echo",
-                    args: vec!["hello"]
-                }
+                Statement {
+                    elements: vec![Element::Cmd(Cmd {
+                        binary: "echo",
+                        args: vec!["hello"]
+                    }),]
+                },
             ]
         );
     }
