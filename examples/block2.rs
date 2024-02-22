@@ -6,30 +6,32 @@ use std::{
     process::{Command, Output},
 };
 
+// This struct doesn't use lifetime to keep the code simple.
+// You can try to use `&str` instead of `String` to avoid unnecessary allocations. 👍
 #[derive(PartialEq, Debug)]
-struct Cmd<'a> {
-    binary: &'a str,
-    args: Vec<&'a str>,
+struct Cmd {
+    binary: String,
+    args: Vec<String>,
 }
 
 #[derive(PartialEq, Debug)]
-enum Element<'a> {
+enum Element {
     /// `&&`
     And,
     /// `||`
     Or,
     /// Command.
-    Cmd(Cmd<'a>),
+    Cmd(Cmd),
 }
 
 #[derive(PartialEq, Debug)]
-struct Chain<'a> {
-    elements: Vec<Element<'a>>,
+struct Chain {
+    elements: Vec<Element>,
 }
 
-impl<'a> Chain<'a> {
-    fn parse(command: &'a str) -> Option<Self> {
-        let mut tokens = command.split_whitespace().peekable();
+impl Chain {
+    fn parse(command: String) -> Option<Self> {
+        let mut tokens = command.split_whitespace().map(String::from).peekable();
         let mut elements = vec![];
         while let Some(e) = Element::parse_next(&mut tokens) {
             elements.push(e);
@@ -67,11 +69,11 @@ impl<'a> Chain<'a> {
     }
 }
 
-impl<'a> Element<'a> {
-    fn parse_next<I: Iterator<Item = &'a str>>(tokens: &mut Peekable<I>) -> Option<Self> {
+impl Element {
+    fn parse_next<I: Iterator<Item = String>>(tokens: &mut Peekable<I>) -> Option<Self> {
         tokens
             .next()
-            .and_then(|next| match Self::parse_operator(next) {
+            .and_then(|next| match Self::parse_operator(&next) {
                 Some(operator) => Some(operator),
                 None => Self::parse_cmd(next, tokens).map(Self::Cmd),
             })
@@ -89,11 +91,11 @@ impl<'a> Element<'a> {
         Self::parse_operator(token).is_some()
     }
 
-    fn parse_cmd<I: Iterator<Item = &'a str>>(
-        binary: &'a str,
+    fn parse_cmd<I: Iterator<Item = String>>(
+        binary: String,
         tokens: &mut Peekable<I>,
-    ) -> Option<Cmd<'a>> {
-        let mut args: Vec<&str> = vec![];
+    ) -> Option<Cmd> {
+        let mut args: Vec<String> = vec![];
         loop {
             let next = tokens.peek();
             match next {
@@ -102,7 +104,7 @@ impl<'a> Element<'a> {
                     break;
                 }
                 Some(token) => {
-                    args.push(token);
+                    args.push(token.clone());
                 }
                 None => break,
             }
@@ -112,7 +114,7 @@ impl<'a> Element<'a> {
     }
 }
 
-impl<'a> Cmd<'a> {
+impl Cmd {
     fn run(self) -> Option<Output> {
         let child = Command::new(self.binary)
             .args(self.args)
@@ -128,7 +130,7 @@ fn main() {
     loop {
         show_prompt();
         let line = read_line();
-        let chains = chains_from_line(&line);
+        let chains = chains_from_line(line);
         for s in chains {
             s.run();
         }
@@ -155,12 +157,17 @@ fn read_line() -> String {
     line
 }
 
-fn chains_from_line(line: &str) -> impl Iterator<Item = Chain> {
+fn chains_from_line(line: String) -> impl Iterator<Item = Chain> {
     // For simplicity sake, this workshop uses the split function.
     // This is inefficient because it parses the whole line.
     // If you feel adventurous, try to parse the line character by character instead. 🤠
-    let commands = line.split(';');
-    commands.filter_map(Chain::parse)
+    let commands = line
+        .split(';')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    commands
+        .into_iter()
+        .filter_map(|s| Chain::parse(s.to_string()))
 }
 
 #[cfg(test)]
@@ -168,7 +175,7 @@ mod tests {
     use super::*;
 
     fn parse_chains(line: &str) -> Vec<Chain> {
-        chains_from_line(line).collect()
+        chains_from_line(line.to_string()).collect()
     }
 
     #[test]
@@ -182,7 +189,7 @@ mod tests {
             parse_chains("ls"),
             vec![Chain {
                 elements: vec![Element::Cmd(Cmd {
-                    binary: "ls",
+                    binary: "ls".to_string(),
                     args: vec![]
                 }),]
             },]
@@ -195,8 +202,8 @@ mod tests {
             parse_chains("ls -l"),
             vec![Chain {
                 elements: vec![Element::Cmd(Cmd {
-                    binary: "ls",
-                    args: vec!["-l"]
+                    binary: "ls".to_string(),
+                    args: vec!["-l".to_string()]
                 })]
             }]
         );
@@ -209,14 +216,14 @@ mod tests {
             vec![
                 Chain {
                     elements: vec![Element::Cmd(Cmd {
-                        binary: "ls",
+                        binary: "ls".to_string(),
                         args: vec![]
                     }),]
                 },
                 Chain {
                     elements: vec![Element::Cmd(Cmd {
-                        binary: "echo",
-                        args: vec!["hello"]
+                        binary: "echo".to_string(),
+                        args: vec!["hello".to_string()]
                     }),]
                 },
             ]
