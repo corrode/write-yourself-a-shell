@@ -2,7 +2,6 @@ use std::{
     io,
     io::IsTerminal,
     io::Write,
-    iter::Peekable,
     process::{Command, Output},
 };
 
@@ -24,25 +23,69 @@ enum Element {
     Cmd(Cmd),
 }
 
+/// Parse `[Element]`s from a string.
+struct Parser {
+    current: usize,
+    tokens: Vec<String>,
+}
+
+impl Parser {
+    fn new(chain: &str) -> Self {
+        Self {
+            tokens: chain.split_whitespace().map(String::from).collect(),
+            current: 0,
+        }
+    }
+
+    fn parse(mut self) -> Option<Chain> {
+        let mut elements = vec![];
+        while let Some(e) = self.parse_next() {
+            elements.push(e);
+        }
+        if !elements.is_empty() {
+            Some(Chain { elements })
+        } else {
+            None
+        }
+    }
+
+    fn parse_next(&mut self) -> Option<Element> {
+        let next = self.tokens.get(self.current).map(|s| s.to_string());
+        next.and_then(|next| {
+            self.current += 1;
+            match Element::parse_operator(&next) {
+                Some(operator) => Some(operator),
+                None => self.parse_cmd(next.to_string()).map(Element::Cmd),
+            }
+        })
+    }
+
+    fn parse_cmd(&mut self, binary: String) -> Option<Cmd> {
+        let mut args: Vec<String> = vec![];
+        loop {
+            let next = self.tokens.get(self.current);
+            match next {
+                Some(token) if Element::is_operator(token) => {
+                    // found operator, so I already parsed all cmd
+                    break;
+                }
+                Some(token) => {
+                    args.push(token.to_string());
+                }
+                None => break,
+            }
+            self.current += 1;
+        }
+        Some(Cmd { binary, args })
+    }
+}
+
 #[derive(PartialEq, Debug)]
 struct Chain {
     elements: Vec<Element>,
 }
 
 impl Chain {
-    fn parse(command: String) -> Option<Self> {
-        let mut tokens = command.split_whitespace().map(String::from).peekable();
-        let mut elements = vec![];
-        while let Some(e) = Element::parse_next(&mut tokens) {
-            elements.push(e);
-        }
-        if !elements.is_empty() {
-            Some(Self { elements })
-        } else {
-            None
-        }
-    }
-
     fn run(self) {
         let mut prev_output: Option<Output> = None;
         for e in self.elements {
@@ -70,15 +113,6 @@ impl Chain {
 }
 
 impl Element {
-    fn parse_next<I: Iterator<Item = String>>(tokens: &mut Peekable<I>) -> Option<Self> {
-        tokens
-            .next()
-            .and_then(|next| match Self::parse_operator(&next) {
-                Some(operator) => Some(operator),
-                None => Self::parse_cmd(next, tokens).map(Self::Cmd),
-            })
-    }
-
     fn parse_operator(token: &str) -> Option<Self> {
         match token {
             "&&" => Some(Self::And),
@@ -89,28 +123,6 @@ impl Element {
 
     fn is_operator(token: &str) -> bool {
         Self::parse_operator(token).is_some()
-    }
-
-    fn parse_cmd<I: Iterator<Item = String>>(
-        binary: String,
-        tokens: &mut Peekable<I>,
-    ) -> Option<Cmd> {
-        let mut args: Vec<String> = vec![];
-        loop {
-            let next = tokens.peek();
-            match next {
-                Some(token) if Self::is_operator(token) => {
-                    // found operator, so I already parsed all cmd
-                    break;
-                }
-                Some(token) => {
-                    args.push(token.clone());
-                }
-                None => break,
-            }
-            tokens.next();
-        }
-        Some(Cmd { binary, args })
     }
 }
 
@@ -157,17 +169,14 @@ fn read_line() -> String {
     line
 }
 
-fn chains_from_line(line: String) -> impl Iterator<Item = Chain> {
+fn chains_from_line(line: String) -> Vec<Chain> {
     // For simplicity sake, this workshop uses the split function.
     // This is inefficient because it parses the whole line.
     // If you feel adventurous, try to parse the line character by character instead. 🤠
-    let commands = line
-        .split(';')
+    line.split(';')
         .map(|s| s.to_string())
-        .collect::<Vec<String>>();
-    commands
-        .into_iter()
-        .filter_map(|s| Chain::parse(s.to_string()))
+        .filter_map(|s| Parser::new(&s).parse())
+        .collect()
 }
 
 #[cfg(test)]
@@ -175,7 +184,7 @@ mod tests {
     use super::*;
 
     fn parse_chains(line: &str) -> Vec<Chain> {
-        chains_from_line(line.to_string()).collect()
+        chains_from_line(line.to_string())
     }
 
     #[test]
