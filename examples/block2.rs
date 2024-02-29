@@ -5,7 +5,7 @@ use std::{
     process::{Command, Output},
 };
 
-// This struct doesn't use lifetime to keep the code simple.
+// This struct doesn't use lifetimes to keep the code simple.
 // You can try to use `&str` instead of `String` to avoid unnecessary allocations. 👍
 #[derive(PartialEq, Debug)]
 struct Cmd {
