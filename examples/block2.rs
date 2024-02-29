@@ -149,8 +149,8 @@ fn main() {
     }
 }
 
-/// If stdout is printed to a terminal, print a prompt.
-/// Otherwise, do nothing. This allows to redirect the shell stdout
+/// If `stdout` is printed to a terminal, print a prompt.
+/// Otherwise, do nothing. This allows to redirect the shell `stdout`
 /// to a file or another process, without the prompt being printed.
 fn show_prompt() {
     let mut stdout = std::io::stdout();
