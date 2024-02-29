@@ -170,7 +170,7 @@ fn read_line() -> String {
 }
 
 fn chains_from_line(line: String) -> Vec<Chain> {
-    // For simplicity sake, this workshop uses the split function.
+    // For simplicity's sake, this workshop uses the split function.
     // This is inefficient because it parses the whole line.
     // If you feel adventurous, try to parse the line character by character instead. 🤠
     line.split(';')
