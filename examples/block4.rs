@@ -14,14 +14,11 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// everything in one file for learning purposes.
 mod builtins {
     use crate::Result;
+    use std::io::Write;
     use std::{path::PathBuf, process::Output};
 
-    #[cfg(unix)]
-    use std::os::unix::process::ExitStatusExt;
-
-    #[cfg(windows)]
-    use std::os::windows::process::ExitStatusExt;
-
+    /// The `cd` command changes the current directory.
+    ///
     /// The `cd` command changes the current directory of the shell.
     /// If the directory is not found, it prints an error message.
     /// If the directory is successfully changed, it returns `Ok(())` and
@@ -42,19 +39,11 @@ mod builtins {
         }
 
         /// Run the `cd` command.
-        ///
-        /// This changes the current directory of the process
-        /// (our shell in this case).
         pub fn run(self) -> Result<Option<Output>> {
-            if !self.dir.exists() {
-                return Ok(Some(Output {
-                    stdout: Vec::new(),
-                    stderr: b"No such file or directory\n".to_vec(),
-                    status: std::process::ExitStatus::from_raw(1),
-                }));
-            }
+            // `std::env::set_current_dir` changes the current directory of the process
+            // (our shell in this case).
             std::env::set_current_dir(&self.dir)?;
-            // The `cd` command, if successful, doesn't produce any output.
+            // The `cd` command doesn't produce any output.
             Ok(None)
         }
     }
@@ -78,6 +67,54 @@ mod builtins {
         pub fn run(self) -> Result<Option<Output>> {
             // The `exit` command doesn't produce any output.
             std::process::exit(self.status);
+        }
+    }
+
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
+
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
+
+    // Store history file in current path. This is convenient for debugging purposes.
+    // In a real shell, the history would be stored in a file in the user's home directory.
+    const DEFAULT_HISTORY_PATH: &str = ".history";
+
+    /// The `history` command displays the command history.
+    pub struct History {
+        history_path: PathBuf,
+    }
+
+    impl History {
+        /// Create a new `History` command.
+        pub fn new() -> Self {
+            // The path can be overridden by setting the `HISTORY_PATH` environment variable.
+            let history_path = std::env::var("HISTORY_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from(DEFAULT_HISTORY_PATH));
+
+            Self { history_path }
+        }
+
+        /// Add a command to the history.
+        pub fn add(&self, command: &str) -> Result<()> {
+            let mut history = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.history_path)?;
+            writeln!(history, "{command}")?;
+            Ok(())
+        }
+
+        /// Get all the commands in the history.
+        pub fn run(self) -> Result<Option<Output>> {
+            let history = std::fs::read_to_string(&self.history_path)?;
+
+            Ok(Some(Output {
+                status: std::process::ExitStatus::from_raw(0),
+                stdout: history.into_bytes(),
+                stderr: Vec::new(),
+            }))
         }
     }
 }
@@ -219,14 +256,27 @@ impl Cmd {
                 };
                 builtins::Exit::new(status).run()
             }
+            "history" => builtins::History::new().run(),
             _ => self.run_external(),
         };
 
-        // We print errors here, but we don't stop the shell.
-        // This could also be done further up the call stack.
-        if let Err(e) = result {
-            eprintln!("{}", e);
-        };
+        match result {
+            Ok(output) => {
+                match output {
+                    Some(output) => {
+                        // Print stdout
+                        std::io::stdout().write_all(&output.stdout).unwrap();
+
+                        // Print stderr
+                        std::io::stderr().write_all(&output.stderr).unwrap();
+                    }
+                    None => {}
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+            }
+        }
 
         None
     }
@@ -239,9 +289,11 @@ impl Cmd {
 }
 
 fn main() {
+    let history = builtins::History::new();
     loop {
         show_prompt();
         let line = read_line();
+        history.add(&line.trim()).expect("Cannot open history file");
         let chains = chains_from_line(line);
         for chain in chains {
             chain.run();
