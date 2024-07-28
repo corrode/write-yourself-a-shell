@@ -22,6 +22,8 @@ mod builtins {
     #[cfg(windows)]
     use std::os::windows::process::ExitStatusExt;
 
+    /// The `cd` command changes the current directory.
+    ///
     /// The `cd` command changes the current directory of the shell.
     /// If the directory is not found, it prints an error message.
     /// If the directory is successfully changed, it returns `Ok(())` and
