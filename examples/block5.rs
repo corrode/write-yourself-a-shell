@@ -1,8 +1,6 @@
 use std::{
-    io,
-    io::IsTerminal,
-    io::Write,
-    process::{Command, Output},
+    io::{self, IsTerminal, Stdin, Write},
+    process::{Command, Output, Stdio},
 };
 
 /// Alias for our `Result` type. You could also use `anyhow` instead.
@@ -130,6 +128,8 @@ struct Cmd {
 
 #[derive(PartialEq, Debug)]
 enum Element {
+    /// `|`
+    Pipe,
     /// `&&`
     And,
     /// `||`
@@ -201,35 +201,34 @@ struct Chain {
 }
 
 impl Chain {
-    fn run(self) {
+    fn run(self) -> Option<Output> {
         let mut prev_output: Option<Output> = None;
         for e in self.elements {
             match e {
                 Element::Cmd(cmd) => {
-                    prev_output = cmd.run();
+                    prev_output = cmd.run(prev_output);
                 }
+                Element::Pipe => continue,
                 Element::And => {
-                    let status = prev_output.expect("no command before &&").status;
-                    if !status.success() {
+                    if !prev_output.as_ref()?.status.success() {
                         break;
                     }
-                    prev_output = None;
                 }
                 Element::Or => {
-                    let status = prev_output.expect("no command before ||").status;
-                    if status.success() {
+                    if prev_output.as_ref()?.status.success() {
                         break;
                     }
-                    prev_output = None;
                 }
             }
         }
+        prev_output
     }
 }
 
 impl Element {
     fn parse_operator(token: &str) -> Option<Self> {
         match token {
+            "|" => Some(Self::Pipe),
             "&&" => Some(Self::And),
             "||" => Some(Self::Or),
             _ => None,
@@ -242,7 +241,7 @@ impl Element {
 }
 
 impl Cmd {
-    fn run(self) -> Option<Output> {
+    fn run(&self, prev_output: Option<Output>) -> Option<Output> {
         let result = match self.binary.as_ref() {
             "cd" => {
                 let dir = self.args.get(0)?;
@@ -250,40 +249,50 @@ impl Cmd {
                 builtins::Cd::new(dir).run()
             }
             "exit" => {
-                let status = match self.args.get(0) {
-                    Some(status) => status.parse().unwrap_or(0),
-                    None => 0,
-                };
+                let status = self.args.get(0).and_then(|s| s.parse().ok()).unwrap_or(0);
                 builtins::Exit::new(status).run()
             }
             "history" => builtins::History::new().run(),
-            _ => self.run_external(),
+            _ => self.run_external(prev_output),
         };
 
         match result {
             Ok(output) => {
-                match output {
-                    Some(output) => {
-                        // Print stdout
-                        std::io::stdout().write_all(&output.stdout).unwrap();
-
-                        // Print stderr
-                        std::io::stderr().write_all(&output.stderr).unwrap();
-                    }
-                    None => {}
+                if let Some(output) = &output {
+                    // Print stdout
+                    std::io::stdout().write_all(&output.stdout).unwrap();
+                    // Print stderr
+                    std::io::stderr().write_all(&output.stderr).unwrap();
                 }
+                output
             }
             Err(e) => {
                 eprintln!("Error: {}", e);
+                None
+            }
+        }
+    }
+
+    fn run_external(&self, prev_output: Option<Output>) -> Result<Option<Output>> {
+        let mut command = Command::new(&self.binary);
+        command.args(&self.args);
+
+        if prev_output.is_some() {
+            command.stdin(Stdio::piped());
+        }
+
+        let mut child = command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        if let Some(prev_output) = prev_output {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(&prev_output.stdout)?;
             }
         }
 
-        None
-    }
-
-    fn run_external(self) -> Result<Option<Output>> {
-        let child = Command::new(self.binary).args(self.args).spawn()?;
-        let output = child.wait_with_output().expect("command wasn't running");
+        let output = child.wait_with_output()?;
         Ok(Some(output))
     }
 }
@@ -401,6 +410,7 @@ mod tests {
                         binary: "ls".to_string(),
                         args: vec![]
                     }),
+                    Element::Pipe,
                     Element::Cmd(Cmd {
                         binary: "wc".to_string(),
                         args: vec!["-l".to_string()]

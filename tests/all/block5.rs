@@ -5,7 +5,7 @@ use crate::utils::ShellRunner;
 const SHELL_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[test]
-fn test_pipes() {
+fn test_pipes_evaluation() {
     let output = ShellRunner::new()
         .with_stdin("echo hello | wc -c\n")
         .example("block5")

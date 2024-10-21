@@ -1,84 +1,414 @@
-use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use std::{
+    io::{self, IsTerminal, Stdin, Write},
+    process::{Command, Output, Stdio},
+};
 
-use std::convert::TryFrom;
-use std::process::{Command, Stdio};
+/// Alias for our `Result` type. You could also use `anyhow` instead.
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-mod builtin;
-mod cmd;
-mod error;
+/// This module contains the built-in commands of the shell.
+/// In a production-grade project, you would probably want to
+/// move this module to its own file, but we keep it here to have
+/// everything in one file for learning purposes.
+mod builtins {
+    use crate::Result;
+    use std::io::Write;
+    use std::{path::PathBuf, process::Output};
 
-use cmd::{Statement, Statements};
-use error::Error;
+    /// The `cd` command changes the current directory.
+    ///
+    /// The `cd` command changes the current directory of the shell.
+    /// If the directory is not found, it prints an error message.
+    /// If the directory is successfully changed, it returns `Ok(())` and
+    /// the shell should update its current directory.
+    ///
+    /// A real `cd` accepts options like `-L` and `-P`, to resolve symbolic links.
+    /// It also has special cases like `cd -` to go to the previous directory or `cd ~` to go to the home directory.
+    /// We don't implement these features in this workshop, but you can give it a try!
+    pub struct Cd {
+        /// The directory to change into.
+        dir: PathBuf,
+    }
 
-fn main() -> Result<(), Error> {
-    let mut rl = DefaultEditor::new().unwrap();
+    impl Cd {
+        /// Create a new `Cd` command.
+        pub fn new(dir: PathBuf) -> Self {
+            Self { dir }
+        }
 
-    loop {
-        let readline = rl.readline("> ");
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str()).unwrap();
-                match handle(line) {
-                    Err(Error::NoBinary) | Ok(()) => {}
-                    Err(e) => eprintln!("rush: {:?}", e),
-                }
-            }
-            Err(ReadlineError::Interrupted) => {}
-            Err(ReadlineError::Eof) => {
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
-            }
+        /// Run the `cd` command.
+        pub fn run(self) -> Result<Option<Output>> {
+            // `std::env::set_current_dir` changes the current directory of the process
+            // (our shell in this case).
+            std::env::set_current_dir(&self.dir)?;
+            // The `cd` command doesn't produce any output.
+            Ok(None)
         }
     }
-    Ok(())
+
+    /// The `exit` command exits the shell.
+    ///
+    /// The `exit` command exits the shell with the given status code.
+    /// If no status code is given, it exits with status code 0.
+    pub struct Exit {
+        /// The status code to exit with.
+        status: i32,
+    }
+
+    impl Exit {
+        /// Create a new `Exit` command.
+        pub fn new(status: i32) -> Self {
+            Self { status }
+        }
+
+        /// Run the `exit` command.
+        pub fn run(self) -> Result<Option<Output>> {
+            // The `exit` command doesn't produce any output.
+            std::process::exit(self.status);
+        }
+    }
+
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
+
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
+
+    // Store history file in current path. This is convenient for debugging purposes.
+    // In a real shell, the history would be stored in a file in the user's home directory.
+    const DEFAULT_HISTORY_PATH: &str = ".history";
+
+    /// The `history` command displays the command history.
+    pub struct History {
+        history_path: PathBuf,
+    }
+
+    impl History {
+        /// Create a new `History` command.
+        pub fn new() -> Self {
+            // The path can be overridden by setting the `HISTORY_PATH` environment variable.
+            let history_path = std::env::var("HISTORY_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from(DEFAULT_HISTORY_PATH));
+
+            Self { history_path }
+        }
+
+        /// Add a command to the history.
+        pub fn add(&self, command: &str) -> Result<()> {
+            let mut history = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.history_path)?;
+            writeln!(history, "{command}")?;
+            Ok(())
+        }
+
+        /// Get all the commands in the history.
+        pub fn run(self) -> Result<Option<Output>> {
+            let history = std::fs::read_to_string(&self.history_path)?;
+
+            Ok(Some(Output {
+                status: std::process::ExitStatus::from_raw(0),
+                stdout: history.into_bytes(),
+                stderr: Vec::new(),
+            }))
+        }
+    }
 }
 
-fn handle(line: String) -> Result<(), Error> {
-    let statements = Statements::try_from(line.as_ref())?;
-    for statement in statements {
-        match statement {
-            Statement::Cmd { binary, args } => {
-                if binary == "exit" {
-                    builtin::exit(args);
-                } else {
-                    match Command::new(binary).args(args).output() {
-                        Ok(output) => print!("{}", String::from_utf8_lossy(&output.stdout)),
-                        Err(e) => eprintln!("rush: {:?}", e),
+// This struct doesn't use lifetimes to keep the code simple.
+// You can try to use `&str` instead of `String`
+// to avoid unnecessary allocations. 👍
+#[derive(PartialEq, Debug)]
+struct Cmd {
+    binary: String,
+    args: Vec<String>,
+}
+
+#[derive(PartialEq, Debug)]
+enum Element {
+    /// `|`
+    Pipe,
+    /// `&&`
+    And,
+    /// `||`
+    Or,
+    /// Command.
+    Cmd(Cmd),
+}
+
+/// Parse `[Element]`s from a string.
+struct Parser {
+    current: usize,
+    tokens: Vec<String>,
+}
+
+impl Parser {
+    fn new(chain: &str) -> Self {
+        Self {
+            tokens: chain.split_whitespace().map(String::from).collect(),
+            current: 0,
+        }
+    }
+
+    fn parse(mut self) -> Option<Chain> {
+        let mut elements = vec![];
+        while let Some(e) = self.parse_next() {
+            elements.push(e);
+        }
+        if !elements.is_empty() {
+            Some(Chain { elements })
+        } else {
+            None
+        }
+    }
+
+    fn parse_next(&mut self) -> Option<Element> {
+        let next = self.tokens.get(self.current).map(|s| s.to_string());
+        next.and_then(|next| {
+            self.current += 1;
+            match Element::parse_operator(&next) {
+                Some(operator) => Some(operator),
+                None => self.parse_cmd(next.to_string()).map(Element::Cmd),
+            }
+        })
+    }
+
+    fn parse_cmd(&mut self, binary: String) -> Option<Cmd> {
+        let mut args: Vec<String> = vec![];
+        loop {
+            let next = self.tokens.get(self.current);
+            match next {
+                Some(token) if Element::is_operator(token) => {
+                    // found operator, so I already parsed all cmd
+                    break;
+                }
+                Some(token) => {
+                    args.push(token.to_string());
+                }
+                None => break,
+            }
+            self.current += 1;
+        }
+        Some(Cmd { binary, args })
+    }
+}
+
+#[derive(PartialEq, Debug)]
+struct Chain {
+    elements: Vec<Element>,
+}
+
+impl Chain {
+    fn run(self) -> Option<Output> {
+        let mut prev_output: Option<Output> = None;
+        for e in self.elements {
+            match e {
+                Element::Cmd(cmd) => {
+                    prev_output = cmd.run(prev_output);
+                }
+                Element::Pipe => continue,
+                Element::And => {
+                    if !prev_output.as_ref()?.status.success() {
+                        break;
+                    }
+                }
+                Element::Or => {
+                    if prev_output.as_ref()?.status.success() {
+                        break;
                     }
                 }
             }
+        }
+        prev_output
+    }
+}
 
-            Statement::Pipe { input, output } => match (*input, *output) {
-                (
-                    Statement::Cmd {
-                        binary: binary_in,
-                        args: args_in,
-                    },
-                    Statement::Cmd {
-                        binary: binary_out,
-                        args: args_out,
-                    },
-                ) => {
-                    let first_child = Command::new(binary_in)
-                        .args(args_in)
-                        .stdout(Stdio::piped())
-                        .spawn()?;
-                    let first_out = first_child.stdout.ok_or_else(|| Error::Spawn)?;
-                    let second_child = Command::new(binary_out)
-                        .args(args_out)
-                        .stdin(Stdio::from(first_out))
-                        .stdout(Stdio::piped())
-                        .spawn()?;
-                    let output = second_child.wait_with_output()?;
-                    print!("{}", String::from_utf8_lossy(&output.stdout));
-                }
-                _ => unimplemented!(),
-            },
+impl Element {
+    fn parse_operator(token: &str) -> Option<Self> {
+        match token {
+            "|" => Some(Self::Pipe),
+            "&&" => Some(Self::And),
+            "||" => Some(Self::Or),
+            _ => None,
         }
     }
-    Ok(())
+
+    fn is_operator(token: &str) -> bool {
+        Self::parse_operator(token).is_some()
+    }
+}
+
+impl Cmd {
+    fn run(&self, prev_output: Option<Output>) -> Option<Output> {
+        let result = match self.binary.as_ref() {
+            "cd" => {
+                let dir = self.args.get(0)?;
+                let dir = std::path::PathBuf::from(dir);
+                builtins::Cd::new(dir).run()
+            }
+            "exit" => {
+                let status = self.args.get(0).and_then(|s| s.parse().ok()).unwrap_or(0);
+                builtins::Exit::new(status).run()
+            }
+            "history" => builtins::History::new().run(),
+            _ => self.run_external(prev_output),
+        };
+
+        match result {
+            Ok(output) => output,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                None
+            }
+        }
+    }
+
+    fn run_external(&self, prev_output: Option<Output>) -> Result<Option<Output>> {
+        let mut command = Command::new(&self.binary);
+        command.args(&self.args);
+
+        if prev_output.is_some() {
+            command.stdin(Stdio::piped());
+        }
+
+        let mut child = command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        if let Some(prev_output) = prev_output {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(&prev_output.stdout)?;
+            }
+        }
+
+        let output = child.wait_with_output()?;
+        Ok(Some(output))
+    }
+}
+
+fn main() {
+    let history = builtins::History::new();
+    loop {
+        show_prompt();
+        let line = read_line();
+        history.add(&line.trim()).expect("Cannot open history file");
+        let chains = chains_from_line(line);
+        for chain in chains {
+            chain.run();
+        }
+    }
+}
+
+/// If `stdout` is printed to a terminal, print a prompt.
+/// Otherwise, do nothing. This allows to redirect the shell `stdout`
+/// to a file or another process, without the prompt being printed.
+fn show_prompt() {
+    let mut stdout = std::io::stdout();
+    if stdout.is_terminal() {
+        write!(stdout, "> ").unwrap();
+        // Flush stoud to ensure the prompt is displayed.
+        stdout.flush().expect("can't flush stdout");
+    }
+}
+
+fn read_line() -> String {
+    let mut line = String::new();
+    io::stdin()
+        .read_line(&mut line)
+        .expect("failed to read line from stdin");
+    line
+}
+
+fn chains_from_line(line: String) -> Vec<Chain> {
+    // For simplicity's sake, this workshop uses the split function.
+    // This is inefficient because it parses the whole line.
+    // If you feel adventurous, try to parse the line character by character instead. 🤠
+    line.split(';')
+        .map(|s| s.to_string())
+        .filter_map(|s| Parser::new(&s).parse())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_chains(line: &str) -> Vec<Chain> {
+        chains_from_line(line.to_string())
+    }
+
+    #[test]
+    fn no_cmd_is_parsed_from_empty_line() {
+        assert_eq!(parse_chains(""), vec![]);
+    }
+
+    #[test]
+    fn cmd_with_no_args_is_parsed() {
+        assert_eq!(
+            parse_chains("ls"),
+            vec![Chain {
+                elements: vec![Element::Cmd(Cmd {
+                    binary: "ls".to_string(),
+                    args: vec![]
+                }),]
+            },]
+        );
+    }
+
+    #[test]
+    fn cmd_with_args_is_parsed() {
+        assert_eq!(
+            parse_chains("ls -l"),
+            vec![Chain {
+                elements: vec![Element::Cmd(Cmd {
+                    binary: "ls".to_string(),
+                    args: vec!["-l".to_string()]
+                })]
+            }]
+        );
+    }
+
+    #[test]
+    fn cmds_are_parsed() {
+        assert_eq!(
+            parse_chains("ls; echo hello"),
+            vec![
+                Chain {
+                    elements: vec![Element::Cmd(Cmd {
+                        binary: "ls".to_string(),
+                        args: vec![]
+                    }),]
+                },
+                Chain {
+                    elements: vec![Element::Cmd(Cmd {
+                        binary: "echo".to_string(),
+                        args: vec!["hello".to_string()]
+                    }),]
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn pipe_is_parsed() {
+        assert_eq!(
+            parse_chains("ls | wc -l"),
+            vec![Chain {
+                elements: vec![
+                    Element::Cmd(Cmd {
+                        binary: "ls".to_string(),
+                        args: vec![]
+                    }),
+                    Element::Pipe,
+                    Element::Cmd(Cmd {
+                        binary: "wc".to_string(),
+                        args: vec!["-l".to_string()]
+                    }),
+                ]
+            }]
+        );
+    }
 }
