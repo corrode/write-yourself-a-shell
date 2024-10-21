@@ -28,8 +28,7 @@ Use `src/main.rs` to start writing your code.
 If you get stuck, check out the [examples](/examples) folder, which contains working source code for each block.
 We recommend to try it yourself first and only refer to the example code in case you run into issues.
 
-You can always check your implementation by running `./validate`.
-(Validate script was adapted from the majestic [build-your-own-shell](https://github.com/tokenrove/build-your-own-shell) by Julian Squires.)
+You can always check your implementation by running `cargo test`.
 
 ## Features We Cover
 

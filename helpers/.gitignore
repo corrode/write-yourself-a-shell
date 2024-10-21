@@ -1,9 +1,0 @@
-*.dSYM
-echo-argc
-echo-exit
-echo-rot13
-echo-signal
-fd-perms
-list-fds
-successful-exit-status
-timeout
