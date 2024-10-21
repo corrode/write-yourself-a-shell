@@ -1,5 +1,5 @@
 use std::{
-    io::{self, IsTerminal, Stdin, Write},
+    io::{self, IsTerminal, Write},
     process::{Command, Output, Stdio},
 };
 
@@ -259,9 +259,7 @@ impl Cmd {
         match result {
             Ok(output) => {
                 if let Some(output) = &output {
-                    // Print stdout
-                    std::io::stdout().write_all(&output.stdout).unwrap();
-                    // Print stderr
+                    // Print stderr (if any)
                     std::io::stderr().write_all(&output.stderr).unwrap();
                 }
                 output
@@ -305,7 +303,10 @@ fn main() {
         history.add(&line.trim()).expect("Cannot open history file");
         let chains = chains_from_line(line);
         for chain in chains {
-            chain.run();
+            let output = chain.run();
+            if let Some(output) = output {
+                std::io::stdout().write_all(&output.stdout).unwrap();
+            }
         }
     }
 }

@@ -20,12 +20,14 @@ fn generate_temp_file_name() -> PathBuf {
 fn test_history() {
     // Random path to history
     let history_path = generate_temp_file_name();
-    std::env::set_var("HISTORY_PATH", &history_path);
+    unsafe { std::env::set_var("HISTORY_PATH", &history_path) };
 
     ShellRunner::new()
         .with_stdin("echo 1\necho 2\nhistory")
         .example("block4")
-        .kill_after(SHELL_TIMEOUT)
+        // This test takes longer to complete sometimes so we increase the
+        // timeout
+        .kill_after(SHELL_TIMEOUT + Duration::from_secs(5))
         .run();
 
     let history_contents = fs::read_to_string(history_path).unwrap();

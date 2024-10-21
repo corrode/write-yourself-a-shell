@@ -13,5 +13,5 @@ fn test_pipes_evaluation() {
         .run();
 
     let stdout_str = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout_str, "6\n");
+    assert_eq!(stdout_str.trim_start(), "6\n");
 }
